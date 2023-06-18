@@ -169,7 +169,7 @@ const (
 	queryNssPrivate = `SELECT a11, a102 from nssPrivate`
 )
 
-func (f *FirefoxPassword) Parse(masterKey []byte) error {
+func (f *FirefoxPassword) Parse(_ []byte) error {
 	globalSalt, metaBytes, nssA11, nssA102, err := getFirefoxDecryptKey(item.TempFirefoxKey4)
 	if err != nil {
 		return err

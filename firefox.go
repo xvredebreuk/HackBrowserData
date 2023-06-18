@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	// import sqlite3 driver
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/moond4rk/hackbrowserdata/crypto"

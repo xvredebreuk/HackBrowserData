@@ -32,22 +32,22 @@ func NewASN1PBE(b []byte) (pbe ASN1PBE, err error) {
 		l    loginPBE
 		errs []string
 	)
-	if _, err := asn1.Unmarshal(b, &n); err == nil {
+	if _, err = asn1.Unmarshal(b, &n); err == nil {
 		return n, nil
-	} else {
-		errs = append(errs, err.Error())
 	}
-	if _, err := asn1.Unmarshal(b, &m); err == nil {
+	errs = append(errs, err.Error())
+
+	if _, err = asn1.Unmarshal(b, &m); err == nil {
 		return m, nil
-	} else {
-		errs = append(errs, err.Error())
 	}
-	if _, err := asn1.Unmarshal(b, &l); err == nil {
+	errs = append(errs, err.Error())
+
+	if _, err = asn1.Unmarshal(b, &l); err == nil {
 		return l, nil
-	} else {
-		errs = append(errs, err.Error())
 	}
-	return nil, fmt.Errorf("%w: %s", err, strings.Join(errs, "; "))
+	errs = append(errs, err.Error())
+
+	return nil, fmt.Errorf("%w: %s", errDecodeASN1Failed, strings.Join(errs, "; "))
 }
 
 // nssPBE Struct
