@@ -60,9 +60,15 @@ issues:
     - G502
     - G505
   exclude-rules:
-    - path: browser/browser\.go
+    - path: _test\.go
       linters:
-        - 'unused'
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - unparam
+        - staticcheck
+        - paralleltest
   max-issues-per-linter: 0
   max-same-issues: 0
 

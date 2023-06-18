@@ -4,8 +4,7 @@ import (
 	"testing"
 )
 
-func TestChromium_Init(t *testing.T) {
-
+func TestChromium_Init(_ *testing.T) {
 }
 
 func BenchmarkChromium_Init(b *testing.B) {

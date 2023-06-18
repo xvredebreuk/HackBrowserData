@@ -17,9 +17,7 @@ const (
 	arcStorageName        = "Arc"
 )
 
-var (
-	homeDir, _ = os.UserHomeDir()
-)
+var homeDir, _ = os.UserHomeDir()
 
 var (
 	chromeProfilePath     = homeDir + "/Library/Application Support/Google/Chrome/Default/"

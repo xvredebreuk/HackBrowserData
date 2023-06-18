@@ -33,10 +33,7 @@ func (c *chromium) Init() error {
 	if err := c.initProfile(); err != nil {
 		return fmt.Errorf("profile path '%s' does not exist %w", c.profilePath, ErrBrowserNotExists)
 	}
-	if err := c.initMasterKey(); err != nil {
-		return err
-	}
-	return nil
+	return c.initMasterKey()
 }
 
 func (c *chromium) initBrowserData() error {
@@ -94,9 +91,7 @@ func (c *chromium) findAllProfiles() ([]string, error) {
 }
 
 func (c *chromium) initMasterKey() error {
-	var (
-		stdout, stderr bytes.Buffer
-	)
+	var stdout, stderr bytes.Buffer
 	args := []string{"find-generic-password", "-wa", strings.TrimSpace(c.storage)}
 	cmd := exec.Command("security", args...) //nolint:gosec
 	cmd.Stdout = &stdout

@@ -39,7 +39,7 @@ func (c *chromium) AllBrowsingData() ([]BrowserData, error) {
 	return nil, nil
 }
 
-func (f *firefox) BrowsingData(items []browserDataType) (BrowserData, error) {
+func (f *firefox) BrowsingData(_ []browserDataType) (BrowserData, error) {
 	return nil, nil
 }
 
@@ -68,19 +68,17 @@ func (b browser) Type() browserType {
 	}
 }
 
-var (
-	browsers = map[browser]Browser{
-		Chrome: &chromium{
-			name:          Chrome,
-			storage:       chromeStorageName,
-			profilePath:   chromeProfilePath,
-			supportedData: []browserDataType{TypePassword},
-		},
-		Firefox: &firefox{
-			name:        "",
-			storage:     "",
-			profilePath: "",
-		},
-		Yandex: &chromium{},
-	}
-)
+var browsers = map[browser]Browser{
+	Chrome: &chromium{
+		name:          Chrome,
+		storage:       chromeStorageName,
+		profilePath:   chromeProfilePath,
+		supportedData: []browserDataType{TypePassword},
+	},
+	Firefox: &firefox{
+		name:        "",
+		storage:     "",
+		profilePath: "",
+	},
+	Yandex: &chromium{},
+}
