@@ -60,9 +60,9 @@ const (
 func (b browser) Type() browserType {
 	switch b {
 	case Firefox:
-		return browserTypeYandex
-	case Yandex:
 		return browserTypeFirefox
+	case Yandex:
+		return browserTypeYandex
 	default:
 		return browserTypeChromium
 	}
@@ -76,9 +76,9 @@ var browsers = map[browser]Browser{
 		supportedData: []browserDataType{TypePassword},
 	},
 	Firefox: &firefox{
-		name:        "",
-		storage:     "",
-		profilePath: "",
+		name:          Firefox,
+		profilePath:   firefoxProfilePath,
+		supportedData: []browserDataType{TypePassword},
 	},
 	Yandex: &chromium{},
 }

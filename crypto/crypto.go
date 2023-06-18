@@ -9,6 +9,8 @@ import (
 	"crypto/sha256"
 	"encoding/asn1"
 	"errors"
+	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -20,25 +22,32 @@ var (
 )
 
 type ASN1PBE interface {
-	Decrypt(globalSalt, masterPwd []byte) (key []byte, err error)
+	Decrypt(globalSalt []byte) (key []byte, err error)
 }
 
 func NewASN1PBE(b []byte) (pbe ASN1PBE, err error) {
 	var (
-		n nssPBE
-		m metaPBE
-		l loginPBE
+		n    nssPBE
+		m    metaPBE
+		l    loginPBE
+		errs []string
 	)
 	if _, err := asn1.Unmarshal(b, &n); err == nil {
 		return n, nil
+	} else {
+		errs = append(errs, err.Error())
 	}
 	if _, err := asn1.Unmarshal(b, &m); err == nil {
 		return m, nil
+	} else {
+		errs = append(errs, err.Error())
 	}
 	if _, err := asn1.Unmarshal(b, &l); err == nil {
 		return l, nil
+	} else {
+		errs = append(errs, err.Error())
 	}
-	return nil, errDecodeASN1Failed
+	return nil, fmt.Errorf("%w: %s", err, strings.Join(errs, "; "))
 }
 
 // nssPBE Struct
@@ -60,8 +69,8 @@ type nssPBE struct {
 	Encrypted []byte
 }
 
-func (n nssPBE) Decrypt(globalSalt, masterPwd []byte) (key []byte, err error) {
-	glmp := append(globalSalt, masterPwd...)
+func (n nssPBE) Decrypt(globalSalt []byte) (key []byte, err error) {
+	glmp := globalSalt
 	hp := sha1.Sum(glmp)
 	s := append(hp[:], n.salt()...)
 	chp := sha1.Sum(s)
@@ -134,7 +143,7 @@ type slatAttr struct {
 	}
 }
 
-func (m metaPBE) Decrypt(globalSalt, _ []byte) (key2 []byte, err error) {
+func (m metaPBE) Decrypt(globalSalt []byte) (key2 []byte, err error) {
 	k := sha1.Sum(globalSalt)
 	key := pbkdf2.Key(k[:], m.salt(), m.iterationCount(), m.keySize(), sha256.New)
 	iv := append([]byte{4, 14}, m.iv()...)
@@ -177,7 +186,7 @@ type loginPBE struct {
 	Encrypted []byte
 }
 
-func (l loginPBE) Decrypt(globalSalt, _ []byte) (key []byte, err error) {
+func (l loginPBE) Decrypt(globalSalt []byte) (key []byte, err error) {
 	return des3Decrypt(globalSalt, l.iv(), l.encrypted())
 }
 

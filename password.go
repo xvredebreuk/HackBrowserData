@@ -2,13 +2,16 @@ package hackbrowserdata
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	// import sqlite3 driver
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/tidwall/gjson"
 
 	"github.com/moond4rk/hackbrowserdata/crypto"
 	"github.com/moond4rk/hackbrowserdata/item"
@@ -29,13 +32,13 @@ type Password struct {
 
 func (c *chromium) Passwords() ([]Password, error) {
 	if _, ok := c.supportedDataMap[TypePassword]; !ok {
+		// TODO: Error handle more gracefully
 		return nil, errors.New("password for c.name is not supported")
 	}
 	var fullPass []Password
 	for _, profile := range c.profilePaths {
 		passFile := filepath.Join(profile, TypePassword.Filename(c.name))
 		if !fileutil.IsFileExists(passFile) {
-			fmt.Println(passFile)
 			return nil, errors.New("password file does not exist")
 		}
 		if err := fileutil.CopyFile(passFile, item.TempChromiumPassword); err != nil {
@@ -104,8 +107,79 @@ const (
 )
 
 func (f *firefox) Passwords() ([]Password, error) {
-	if f.masterKey != nil {
-		return nil, nil
+	if _, ok := f.supportedDataMap[TypePassword]; !ok {
+		// TODO: Error handle more gracefully
+		return nil, errors.New("password for c.name is not supported")
 	}
-	return nil, nil
+	var fullPass []Password
+	for profile, masterKey := range f.profilePathKeys {
+		passFile := filepath.Join(profile, TypePassword.Filename(f.name))
+		if !fileutil.IsFileExists(passFile) {
+			fmt.Println(passFile)
+			return nil, errors.New("password file does not exist")
+		}
+		if err := fileutil.CopyFile(passFile, item.TempFirefoxPassword); err != nil {
+			return nil, err
+		}
+		passwords, err := f.exportPasswords(masterKey, item.TempFirefoxPassword)
+		if err != nil {
+			return nil, err
+		}
+		if len(passwords) > 0 {
+			fullPass = append(fullPass, passwords...)
+		}
+	}
+	return fullPass, nil
+}
+
+func (f *firefox) exportPasswords(masterKey []byte, loginFile string) ([]Password, error) {
+	s, err := os.ReadFile(loginFile)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(loginFile)
+	loginsJSON := gjson.GetBytes(s, "logins")
+	var passwords []Password
+	if loginsJSON.Exists() {
+		for _, v := range loginsJSON.Array() {
+			var (
+				p           Password
+				encryptUser []byte
+				encryptPass []byte
+			)
+			p.LoginURL = v.Get("formSubmitURL").String()
+			encryptUser, err = base64.StdEncoding.DecodeString(v.Get("encryptedUsername").String())
+			if err != nil {
+				return nil, err
+			}
+			encryptPass, err = base64.StdEncoding.DecodeString(v.Get("encryptedPassword").String())
+			if err != nil {
+				return nil, err
+			}
+			p.encryptUser = encryptUser
+			p.encryptPass = encryptPass
+			// TODO: handle error
+			userPBE, err := crypto.NewASN1PBE(p.encryptUser)
+			if err != nil {
+				return nil, err
+			}
+			pwdPBE, err := crypto.NewASN1PBE(p.encryptPass)
+			if err != nil {
+				return nil, err
+			}
+			username, err := userPBE.Decrypt(masterKey)
+			if err != nil {
+				return nil, err
+			}
+			password, err := pwdPBE.Decrypt(masterKey)
+			if err != nil {
+				return nil, err
+			}
+			p.Password = string(password)
+			p.Username = string(username)
+			p.CreateDate = typeutil.TimeStamp(v.Get("timeCreated").Int() / 1000)
+			passwords = append(passwords, p)
+		}
+	}
+	return passwords, nil
 }

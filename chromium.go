@@ -56,6 +56,8 @@ func (c *chromium) initProfile() error {
 			return err
 		}
 		c.profilePaths = profilesPaths
+	} else {
+		c.profilePaths = []string{c.profilePath}
 	}
 	return nil
 }
@@ -81,7 +83,6 @@ func (c *chromium) findAllProfiles() ([]string, error) {
 		if info.IsDir() && path != root && depth >= 2 {
 			return filepath.SkipDir
 		}
-
 		return err
 	})
 	if err != nil {
@@ -114,7 +115,7 @@ func (c *chromium) initMasterKey() error {
 	salt := []byte("saltysalt")
 	// @https://source.chromium.org/chromium/chromium/src/+/master:components/os_crypt/os_crypt_mac.mm;l=157
 	key := pbkdf2.Key(secret, salt, 1003, 16, sha1.New)
-	if key == nil {
+	if len(key) == 0 {
 		return ErrWrongSecurityCommand
 	}
 	c.masterKey = key
@@ -125,7 +126,7 @@ func (c *chromium) setProfilePath(p string) {
 	c.profilePath = p
 }
 
-func (c *chromium) setEnableAllUsers(e bool) {
+func (c *chromium) setDisableAllUsers(e bool) {
 	c.disableFindAllUser = e
 }
 

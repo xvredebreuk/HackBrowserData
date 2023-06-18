@@ -9,7 +9,7 @@ type BrowserOption func(browserOptionsSetter)
 type browserOptionsSetter interface {
 	setProfilePath(string)
 
-	setEnableAllUsers(bool)
+	setDisableAllUsers(bool)
 
 	setStorageName(string)
 }
@@ -20,9 +20,9 @@ func WithProfilePath(p string) BrowserOption {
 	}
 }
 
-func WithEnableAllUsers(e bool) BrowserOption {
+func WithDisableAllUsers(e bool) BrowserOption {
 	return func(b browserOptionsSetter) {
-		b.setEnableAllUsers(e)
+		b.setDisableAllUsers(e)
 	}
 }
 

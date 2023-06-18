@@ -179,7 +179,7 @@ func (f *FirefoxPassword) Parse(masterKey []byte) error {
 		return err
 	}
 
-	k, err := metaPBE.Decrypt(globalSalt, masterKey)
+	k, err := metaPBE.Decrypt(globalSalt)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (f *FirefoxPassword) Parse(masterKey []byte) error {
 			if err != nil {
 				return err
 			}
-			finallyKey, err := nssPBE.Decrypt(globalSalt, masterKey)
+			finallyKey, err := nssPBE.Decrypt(globalSalt)
 			if err != nil {
 				return err
 			}
@@ -210,11 +210,11 @@ func (f *FirefoxPassword) Parse(masterKey []byte) error {
 				if err != nil {
 					return err
 				}
-				user, err := userPBE.Decrypt(finallyKey, masterKey)
+				user, err := userPBE.Decrypt(finallyKey)
 				if err != nil {
 					return err
 				}
-				pwd, err := pwdPBE.Decrypt(finallyKey, masterKey)
+				pwd, err := pwdPBE.Decrypt(finallyKey)
 				if err != nil {
 					return err
 				}
