@@ -1,33 +1,36 @@
 package hackbrowserdata
 
-import (
-	"path/filepath"
-)
-
-type BrowserOption func(browserOptionsSetter)
-
-type browserOptionsSetter interface {
-	setProfilePath(string)
-
-	setDisableAllUsers(bool)
-
-	setStorageName(string)
+type Options struct {
+	Name            browser
+	Storage         string
+	ProfilePath     string
+	IsEnableAllUser bool
+	DataTypes       []DataType
+	NewBrowserFunc  func(*Options) (Browser, error)
 }
 
-func WithProfilePath(p string) BrowserOption {
-	return func(b browserOptionsSetter) {
-		b.setProfilePath(filepath.Clean(p))
+type BrowserOption func(*Options)
+
+func WithBrowserName(p string) BrowserOption {
+	return func(o *Options) {
+		o.Name = browser(p)
 	}
 }
 
-func WithDisableAllUsers(e bool) BrowserOption {
-	return func(b browserOptionsSetter) {
-		b.setDisableAllUsers(e)
+func WithProfilePath(p string) BrowserOption {
+	return func(o *Options) {
+		o.ProfilePath = p
+	}
+}
+
+func WithEnableAllUsers(e bool) BrowserOption {
+	return func(o *Options) {
+		o.IsEnableAllUser = e
 	}
 }
 
 func WithStorageName(s string) BrowserOption {
-	return func(b browserOptionsSetter) {
-		b.setStorageName(s)
+	return func(o *Options) {
+		o.Storage = s
 	}
 }

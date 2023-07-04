@@ -1,56 +1,167 @@
 package hackbrowserdata
 
 import (
-	"bytes"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io/fs"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/crypto/pbkdf2"
-
+	"github.com/moond4rk/hackbrowserdata/browserdata"
 	"github.com/moond4rk/hackbrowserdata/utils/fileutil"
 )
 
 type chromium struct {
-	name               browser
-	storage            string
-	profilePath        string
-	profilePaths       []string
-	disableFindAllUser bool
-	masterKey          []byte
-	supportedData      []browserDataType
-	supportedDataMap   map[browserDataType]struct{}
+	name           browser
+	storage        string
+	profilePath    string
+	enableAllUsers bool
+	profilePaths   []string
+	masterKey      []byte
+	// defaultDataTypes
+	supportedDataTypes []DataType
+	extractors         map[DataType]browserdata.Extractor
+	extractedData      map[DataType]interface{}
 }
 
-func (c *chromium) Init() error {
-	if err := c.initBrowserData(); err != nil {
-		return err
+func NewChromium(options *Options) (Browser, error) {
+	if options.ProfilePath == "" {
+		return nil, errors.New("profile path is required")
 	}
-	if err := c.initProfile(); err != nil {
+	if options.Name == "" {
+		return nil, errors.New("browser name is required")
+	}
+	c := &chromium{
+		name:               options.Name,
+		profilePath:        options.ProfilePath,
+		enableAllUsers:     true,
+		supportedDataTypes: defaultDataTypes,
+		extractors:         make(map[DataType]browserdata.Extractor),
+		extractedData:      make(map[DataType]interface{}),
+	}
+	if !options.IsEnableAllUser {
+		c.enableAllUsers = false
+	}
+	if len(options.DataTypes) > 0 {
+		c.supportedDataTypes = options.DataTypes
+	}
+	if err := c.init(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (c *chromium) init() error {
+	if err := c.initProfiles(); err != nil {
 		return fmt.Errorf("profile path '%s' does not exist %w", c.profilePath, ErrBrowserNotExists)
+	}
+	if err := c.initExtractors(); err != nil {
+		return err
 	}
 	return c.initMasterKey()
 }
 
-func (c *chromium) initBrowserData() error {
-	if c.supportedDataMap == nil {
-		c.supportedDataMap = make(map[browserDataType]struct{})
+func (c *chromium) ExtractBrowserData(dataTypes []DataType) (map[DataType]interface{}, error) {
+	for _, dataType := range dataTypes {
+		if extractor, ok := c.extractors[dataType]; ok {
+			data, err := extractor.Extract()
+			if err != nil {
+				fmt.Printf("extract %s data failed: %v", dataType, err)
+				continue
+			}
+			c.extractedData[dataType] = data
+		}
 	}
-	for _, v := range c.supportedData {
-		c.supportedDataMap[v] = struct{}{}
+	return c.extractedData, nil
+}
+
+// func (c *chromium) Passwords() ([]password.Password, error) {
+// 	// browserData, err := c.ExtractBrowserData([]DataType{TypePassword})
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
+// 	dataType := TypePassword
+// 	if data, ok := c.extractedData[dataType]; ok {
+// 		return data.([]password.Password), nil
+// 	}
+// 	extractor, ok := c.extractors[dataType]
+// 	if !ok {
+// 		return nil, fmt.Errorf("%s extractor for %s not found", dataType, c.name)
+// 	}
+// 	data, err := extractor.ExtractChromium()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return data.([]password.Password), nil
+// }
+
+func (c *chromium) filterExistDataPaths(dataTypes []DataType) (map[DataType][]string, error) {
+	// exporters := make(map[DataType]BrowserData)
+	dataPaths := make(map[DataType][]string)
+	var errs []error
+	for _, profile := range c.profilePaths {
+		for _, dataType := range dataTypes {
+			dataTypeFile := filepath.Join(profile, dataType.Filename(c.name))
+			if !fileutil.IsFileExists(dataTypeFile) {
+				errs = append(errs, ErrBrowsingDataNotExists)
+			}
+			dataPaths[dataType] = append(dataPaths[dataType], dataTypeFile)
+		}
+	}
+	return dataPaths, nil
+}
+
+func (c *chromium) Passwords() ([]browserdata.Password, error) {
+	dataType := TypePassword
+	if data, ok := c.extractedData[dataType]; ok {
+		return data.([]browserdata.Password), nil
+	}
+	extractor, ok := c.extractors[dataType]
+	if !ok {
+		return nil, fmt.Errorf("%s extractor for %s not found", dataType, c.name)
+	}
+	data, err := extractor.Extract()
+	if err != nil {
+		return nil, err
+	}
+	return data.([]browserdata.Password), nil
+}
+
+func (c *chromium) Cookies() ([]browserdata.Cookie, error) {
+	dataType := TypeCookie
+	if data, ok := c.extractedData[dataType]; ok {
+		return data.([]browserdata.Cookie), nil
+	}
+	extractor, ok := c.extractors[dataType]
+	if !ok {
+		return nil, fmt.Errorf("%s extractor for %s not found", dataType, c.name)
+	}
+	data, err := extractor.Extract()
+	if err != nil {
+		return nil, err
+	}
+	return data.([]browserdata.Cookie), nil
+}
+
+func (c *chromium) initExtractors() error {
+	dataPaths, err := c.filterExistDataPaths(c.supportedDataTypes)
+	if err != nil {
+		return err
+	}
+	for _, dataType := range c.supportedDataTypes {
+		if _, ok := dataPaths[dataType]; !ok {
+			continue
+		}
+		c.extractors[dataType] = dataType.NewExtractor(c.name.Type(), c.masterKey, dataPaths[dataType])
 	}
 	return nil
 }
 
-func (c *chromium) initProfile() error {
+func (c *chromium) initProfiles() error {
 	if !fileutil.IsDirExists(c.profilePath) {
 		return ErrBrowserNotExists
 	}
-	if !c.disableFindAllUser {
+	if c.enableAllUsers {
 		profilesPaths, err := c.findAllProfiles()
 		if err != nil {
 			return err
@@ -62,6 +173,7 @@ func (c *chromium) initProfile() error {
 	return nil
 }
 
+// TODO: mix it as firefox's find All Profiles
 func (c *chromium) findAllProfiles() ([]string, error) {
 	var profiles []string
 	root := fileutil.ParentDir(c.profilePath)
@@ -70,7 +182,8 @@ func (c *chromium) findAllProfiles() ([]string, error) {
 			return err
 		}
 		// if the path ends with "History", add it to the list
-		if strings.HasSuffix(path, "History") {
+		if strings.HasSuffix(path, TypeHistory.Filename(c.name)) {
+			// skip the "System Profile" directory
 			if !strings.Contains(path, "System Profile") {
 				profiles = append(profiles, filepath.Dir(path))
 			}
@@ -78,7 +191,6 @@ func (c *chromium) findAllProfiles() ([]string, error) {
 
 		// calculate the depth of the current path
 		depth := len(strings.Split(path, string(filepath.Separator))) - len(strings.Split(root, string(filepath.Separator)))
-
 		// if the depth is more than 2 and it's a directory, skip it
 		if info.IsDir() && path != root && depth >= 2 {
 			return filepath.SkipDir
@@ -89,47 +201,4 @@ func (c *chromium) findAllProfiles() ([]string, error) {
 		return nil, err
 	}
 	return profiles, err
-}
-
-func (c *chromium) initMasterKey() error {
-	var stdout, stderr bytes.Buffer
-	args := []string{"find-generic-password", "-wa", strings.TrimSpace(c.storage)}
-	cmd := exec.Command("security", args...) //nolint:gosec
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run security command failed: %w, message %s", err, stderr.String())
-	}
-
-	if stderr.Len() > 0 {
-		if strings.Contains(stderr.String(), "could not be found") {
-			return ErrCouldNotFindInKeychain
-		}
-		return errors.New(stderr.String())
-	}
-
-	secret := bytes.TrimSpace(stdout.Bytes())
-	if len(secret) == 0 {
-		return ErrNoPasswordInOutput
-	}
-	salt := []byte("saltysalt")
-	// @https://source.chromium.org/chromium/chromium/src/+/master:components/os_crypt/os_crypt_mac.mm;l=157
-	key := pbkdf2.Key(secret, salt, 1003, 16, sha1.New)
-	if len(key) == 0 {
-		return ErrWrongSecurityCommand
-	}
-	c.masterKey = key
-	return nil
-}
-
-func (c *chromium) setProfilePath(p string) {
-	c.profilePath = p
-}
-
-func (c *chromium) setDisableAllUsers(e bool) {
-	c.disableFindAllUser = e
-}
-
-func (c *chromium) setStorageName(s string) {
-	c.storage = s
 }

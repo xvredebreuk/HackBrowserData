@@ -34,3 +34,17 @@ var (
 
 	firefoxProfilePath = homeDir + "/Library/Application Support/Firefox/Profiles/"
 )
+
+var defaultBrowserOptions = map[browser]*Options{
+	Chrome: {
+		Name:           Chrome,
+		Storage:        chromeStorageName,
+		ProfilePath:    chromeProfilePath,
+		NewBrowserFunc: NewChromium,
+	},
+	Firefox: {
+		Name:           Firefox,
+		ProfilePath:    firefoxProfilePath,
+		NewBrowserFunc: NewFirefox,
+	},
+}
