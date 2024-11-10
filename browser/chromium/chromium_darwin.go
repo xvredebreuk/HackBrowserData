@@ -7,13 +7,13 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/moond4rk/hackbrowserdata/crypto"
+	"github.com/moond4rk/hackbrowserdata/log"
 	"github.com/moond4rk/hackbrowserdata/types"
-	"github.com/moond4rk/hackbrowserdata/utils/cryptoutil"
 )
 
 var (
@@ -49,11 +49,11 @@ func (c *Chromium) GetMasterKey() ([]byte, error) {
 	}
 	salt := []byte("saltysalt")
 	// @https://source.chromium.org/chromium/chromium/src/+/master:components/os_crypt/os_crypt_mac.mm;l=157
-	key := cryptoutil.PBKDF2Key(secret, salt, 1003, 16, sha1.New)
+	key := crypto.PBKDF2Key(secret, salt, 1003, 16, sha1.New)
 	if key == nil {
 		return nil, errWrongSecurityCommand
 	}
 	c.masterKey = key
-	slog.Info("get master key success", "browser", c.name)
+	log.Debugf("get master key success, browser %s", c.name)
 	return key, nil
 }

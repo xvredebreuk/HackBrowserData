@@ -13,6 +13,7 @@ import (
 
 	"github.com/moond4rk/hackbrowserdata/browserdata"
 	"github.com/moond4rk/hackbrowserdata/crypto"
+	"github.com/moond4rk/hackbrowserdata/log"
 	"github.com/moond4rk/hackbrowserdata/types"
 	"github.com/moond4rk/hackbrowserdata/utils/fileutil"
 	"github.com/moond4rk/hackbrowserdata/utils/typeutil"
@@ -59,6 +60,13 @@ func (f *Firefox) copyItemToLocal() error {
 
 func firefoxWalkFunc(items []types.DataType, multiItemPaths map[string]map[types.DataType]string) fs.WalkDirFunc {
 	return func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsPermission(err) {
+				log.Warnf("skipping walk firefox path %s permission error: %v", path, err)
+				return nil
+			}
+			return err
+		}
 		for _, v := range items {
 			if info.Name() == v.Filename() {
 				parentBaseDir := fileutil.ParentBaseDir(path)
@@ -70,7 +78,7 @@ func firefoxWalkFunc(items []types.DataType, multiItemPaths map[string]map[types
 			}
 		}
 
-		return err
+		return nil
 	}
 }
 
@@ -160,12 +168,12 @@ func (f *Firefox) Name() string {
 }
 
 func (f *Firefox) BrowsingData(isFullExport bool) (*browserdata.BrowserData, error) {
-	items := f.items
+	dataTypes := f.items
 	if !isFullExport {
-		items = types.FilterSensitiveItems(f.items)
+		dataTypes = types.FilterSensitiveItems(f.items)
 	}
 
-	b := browserdata.New(items)
+	data := browserdata.New(dataTypes)
 
 	if err := f.copyItemToLocal(); err != nil {
 		return nil, err
@@ -177,8 +185,8 @@ func (f *Firefox) BrowsingData(isFullExport bool) (*browserdata.BrowserData, err
 	}
 
 	f.masterKey = masterKey
-	if err := b.Recovery(f.masterKey); err != nil {
+	if err := data.Recovery(f.masterKey); err != nil {
 		return nil, err
 	}
-	return b, nil
+	return data, nil
 }

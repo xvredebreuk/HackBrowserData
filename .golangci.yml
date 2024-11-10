@@ -1,7 +1,7 @@
 run:
   timeout: '5m'
   allow-parallel-runners: true
-  modules-download-mode: 'readonly'
+  modules-download-mode: 'mod'
 
 linters:
   enable:
@@ -43,11 +43,8 @@ linters:
     - 'noctx'
     - 'sqlclosecheck'
     - 'staticcheck'
-    - 'structcheck'
     - 'stylecheck'
     - 'unused'
-    - 'deadcode'
-    - 'varcheck'
     - 'paralleltest'
 
 issues:
@@ -83,6 +80,7 @@ issues:
     - G402 # Look for bad TLS connection settings
     - G403 # Ensure minimum RSA key length of 2048 bits
     - G404 # Insecure random number source (rand)
+    - G405 # Look for the use of weak crypto algorithms
     - G501 # Import blocklist: crypto/md5
     - G502 # Import blocklist: crypto/des
     - G503 # Import blocklist: crypto/rc4

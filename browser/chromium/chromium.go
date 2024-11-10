@@ -2,11 +2,12 @@ package chromium
 
 import (
 	"io/fs"
-	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/moond4rk/hackbrowserdata/browserdata"
+	"github.com/moond4rk/hackbrowserdata/log"
 	"github.com/moond4rk/hackbrowserdata/types"
 	"github.com/moond4rk/hackbrowserdata/utils/fileutil"
 	"github.com/moond4rk/hackbrowserdata/utils/typeutil"
@@ -50,12 +51,19 @@ func (c *Chromium) Name() string {
 }
 
 func (c *Chromium) BrowsingData(isFullExport bool) (*browserdata.BrowserData, error) {
-	items := c.dataTypes
-	if !isFullExport {
-		items = types.FilterSensitiveItems(c.dataTypes)
+	// delete chromiumKey from dataTypes, doesn't need to export key
+	var dataTypes []types.DataType
+	for _, dt := range c.dataTypes {
+		if dt != types.ChromiumKey {
+			dataTypes = append(dataTypes, dt)
+		}
 	}
 
-	data := browserdata.New(items)
+	if !isFullExport {
+		dataTypes = types.FilterSensitiveItems(c.dataTypes)
+	}
+
+	data := browserdata.New(dataTypes)
 
 	if err := c.copyItemToLocal(); err != nil {
 		return nil, err
@@ -90,7 +98,7 @@ func (c *Chromium) copyItemToLocal() error {
 			err = fileutil.CopyFile(path, filename)
 		}
 		if err != nil {
-			slog.Error("copy item to local error", "path", path, "filename", filename, "err", err)
+			log.Errorf("copy item to local, path %s, filename %s err %v", path, filename, err)
 			continue
 		}
 	}
@@ -107,10 +115,10 @@ func (c *Chromium) userDataTypePaths(profilePath string, items []types.DataType)
 	}
 	var keyPath string
 	var dir string
-	for userDir, v := range multiItemPaths {
-		for _, p := range v {
-			if strings.HasSuffix(p, types.ChromiumKey.Filename()) {
-				keyPath = p
+	for userDir, profiles := range multiItemPaths {
+		for _, profile := range profiles {
+			if strings.HasSuffix(profile, types.ChromiumKey.Filename()) {
+				keyPath = profile
 				dir = userDir
 				break
 			}
@@ -131,11 +139,21 @@ func (c *Chromium) userDataTypePaths(profilePath string, items []types.DataType)
 // chromiumWalkFunc return a filepath.WalkFunc to find item's path
 func chromiumWalkFunc(items []types.DataType, multiItemPaths map[string]map[types.DataType]string) filepath.WalkFunc {
 	return func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			if os.IsPermission(err) {
+				log.Warnf("skipping walk chromium path permission error, path %s, err %v", path, err)
+				return nil
+			}
+			return err
+		}
 		for _, v := range items {
 			if info.Name() != v.Filename() {
 				continue
 			}
 			if strings.Contains(path, "System Profile") {
+				continue
+			}
+			if strings.Contains(path, "Snapshot") {
 				continue
 			}
 			profileFolder := fileutil.ParentBaseDir(path)
@@ -148,7 +166,7 @@ func chromiumWalkFunc(items []types.DataType, multiItemPaths map[string]map[type
 				multiItemPaths[profileFolder] = map[types.DataType]string{v: path}
 			}
 		}
-		return err
+		return nil
 	}
 }
 
